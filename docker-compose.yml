@@ -1,0 +1,120 @@
+version: '3'
+
+services:
+  lam:
+    image: ldapaccountmanager/lam
+    container_name: lam
+    expose:
+      - "80"
+    environment:
+      - VIRTUAL_HOST=$VIRTUAL_HOST
+      - VIRTUAL_PORT=$VIRTUAL_PORT
+      - VIRTUAL_PATH=$VIRTUAL_PATH_LAM
+      - LDAP_DOMAIN=$LDAP_DOMAIN
+      - LDAP_SERVER=$LDAP_SERVER
+      - LDAP_USER=$LDAP_USER
+      - LDAP_USERS_DN=$LDAP_USERS_DN
+      - LDAP_GROUPS_DN=$LDAP_GROUPS_DN
+      - LAM_PASSWORD=$LAM_PASSWORD
+      - LDAP_ORGANISATION=$LDAP_ORGANISATION
+      - LDAP_ADMIN_PASSWORD=$LDAP_ADMIN_PASSWORD
+      - TZ=$TZ
+    restart: unless-stopped
+    depends_on:
+      - openldap
+
+  openldap:
+    image: docker.io/bitnami/openldap:2.6
+    container_name: openldap
+    ports:
+      - '1389:1389'
+      - '1636:1636'
+    environment:
+      - LDAP_ADMIN_USERNAME=$LDAP_ADMIN_USERNAME
+      - LDAP_ADMIN_PASSWORD=$LDAP_ADMIN_PASSWORD
+      - LDAP_USERS=$LDAP_USERS
+      - LDAP_ROOT=$LDAP_ROOT
+      - LDAP_USER_DC=$LDAP_USER_DC
+      - LDAP_GROUP=$LDAP_GROUP
+      - LDAP_PASSWORDS=$LDAP_PASSWORDS
+    volumes:
+      - 'openldap_data:/bitnami/openldap'
+
+  phpipam-web:
+    image: phpipam/phpipam-www:latest
+    container_name: phpipam-web
+    expose:
+      - "80"
+    environment:
+      - VIRTUAL_HOST=$VIRTUAL_HOST
+      - VIRTUAL_PATH=$VIRTUAL_PATH_PHPIPAM
+      - LETSENCRYPT_HOST=$VIRTUAL_HOST
+      - VIRTUAL_PORT=$VIRTUAL_PORT
+      - TZ=$TZ
+      - IPAM_DATABASE_HOST=$IPAM_DATABASE_HOST
+      - IPAM_DATABASE_USER=$IPAM_DATABASE_USER
+      - IPAM_DATABASE_PASS=$MARIADB_ROOT_PASSWORD
+      - IPAM_DATABASE_WEBHOST=%
+    restart: unless-stopped
+    volumes:
+      - phpipam-logo:/phpipam/css/images/logo
+    depends_on:
+      - phpipam-mariadb
+
+  phpipam-cron:
+    image: phpipam/phpipam-cron:latest
+    environment:
+      - TZ=$TZ
+      - IPAM_DATABASE_HOST=$IPAM_DATABASE_HOST
+      - IPAM_DATABASE_USER=$IPAM_DATABASE_USER
+      - IPAM_DATABASE_PASS=$MARIADB_ROOT_PASSWORD
+      - SCAN_INTERVAL=$SCAN_INTERVAL
+    restart: unless-stopped
+    depends_on:
+      - phpipam-mariadb
+
+  phpipam-mariadb:
+    image: mariadb:latest
+    environment:
+      - MARIADB_ROOT_PASSWORD=$MARIADB_ROOT_PASSWORD
+    restart: unless-stopped
+    volumes:
+      - phpipam-db-data:/var/lib/mysql
+
+  nginx-proxy:
+    image: nginxproxy/nginx-proxy
+    container_name: nginx-proxy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - conf:/etc/nginx/conf.d
+      - vhost:/etc/nginx/vhost.d
+      - html:/usr/share/nginx/html
+      - certs:/etc/nginx/certs:ro
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+
+  acme-companion:
+    image: nginxproxy/acme-companion
+    container_name: nginx-proxy-acme
+    environment:
+      - ACME_CA_URI=$ACME_CA_URI
+      - ZEROSSL_API_KEY=$ZEROSSL_API_KEY
+      - DEFAULT_EMAIL=$DEFAULT_EMAIL
+    volumes_from:
+      - nginx-proxy
+    volumes:
+      - certs:/etc/nginx/certs:rw
+      - acme:/etc/acme.sh
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+volumes:
+  phpipam-db-data:
+  phpipam-logo:
+  conf:
+  vhost:
+  html:
+  certs:
+  acme:
+  openldap_data:
+    driver: local
