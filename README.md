@@ -5,5 +5,11 @@ Once upon a time I was tasked with deploying PhpIPAM with LDAP authentication to
 ## Features
 - OpenLDAP server
 - LDAP Account Manager
-- PhpIPAM that can use LDAP
+- PhpIPAM that optionally uses the LDAP server
 - Nginx with automatic SSL management via ZeroSSL and subdomain management
+
+## Setup
+1. Install docker and docker compose
+2. Copy the repo to the target server
+3. Rename .env.example to .env and fill in the missing variables
+4. run `docker compose up -d`
